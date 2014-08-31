@@ -30,27 +30,27 @@ sample.decode(buffer, toObj)
 
 ```
 
-# Parser.encode( [ params ] )
+### Parser.encode( [ params ] )
 
 return Buffer
 
-# Parser.decode( buffer, toObj )
+### Parser.decode( buffer, toObj )
 
 return Object or Array with data
 
-# Parser.getLine( fd/path, lineNum, toObj )
+### Parser.getLine( fd/path, lineNum, toObj )
 
 as above but from file with specified line
 
-# Parser.lineBytes( fd/path, lineNum )
+### Parser.lineBytes( fd/path, lineNum )
 
 return Object {fd: fileDescription, start: Number, end: Number} where start and end is range in file 
 
-# Parser.getCell( fd/path, lineNum, cellNum/name )
+### Parser.getCell( fd/path, lineNum, cellNum/name )
 
 as above but of cell
 
-# Parser.cellBytes( fd/path, lineNum, cellNum )
+### Parser.cellBytes( fd/path, lineNum, cellNum )
 
 like .getLine but only one cell
 
