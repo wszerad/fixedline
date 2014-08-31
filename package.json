@@ -1,0 +1,29 @@
+{
+  "name": "fixedline",
+  "version": "0.0.1",
+  "description": "Simple lib to create fixed size logs. Useful for big log files or filedased batabase",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wszerad/fixedline.git"
+  },
+  "keywords": [
+    "logs",
+    "file",
+    "database",
+    "fixed",
+    "size"
+  ],
+  "author": "Wszerad",
+  "license": "FREE",
+  "bugs": {
+    "url": "https://github.com/wszerad/fixedline/issues"
+  },
+  "homepage": "https://github.com/wszerad/fixedline"
+}
