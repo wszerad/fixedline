@@ -1,47 +1,235 @@
-var fs = require('fs');
 var _ = require('../index.js').Parser;
+var assert = require('assert');
+var fs = require('fs');
 
-var writer = fs.createWriteStream(__dirname+'/logs/out.log');
-var Parser = new _({
-	date: {
-		size: 18,
+describe('fixedline.encode', function() {
+	it('String', function () {
+		var b = new _({
+			data: {
+				size: 5,
+				type: String
+			}
+		});
+
+		assert.strictEqual(b.encode(['kapus']).toString(), 'kapus\n');
+	});
+
+	it('String filling', function () {
+		var b = new _({
+			data: {
+				size: 5,
+				type: String
+			}
+		});
+
+		assert.strictEqual(b.encode(['kap']).toString(), 'kap  \n');
+	});
+
+	it('Number', function () {
+		var b = new _({
+			data: {
+				size: 5,
+				type: Number
+			}
+		});
+
+		assert.strictEqual(b.encode([1234]).toString(), '1234 \n');
+	});
+
+	it('Boolean', function () {
+		var b = new _({
+			data: {
+				size: 5,
+				type: Boolean
+			}
+		});
+
+		assert.strictEqual(b.encode([true]).toString(), 'true \n');
+	});
+
+	it('Array of Boolean', function () {
+		var b = new _({
+			data: {
+				size: 2,
+				type: [
+					{
+						type: Boolean,
+						size: 5
+					}
+				]
+			}
+		});
+
+		assert.strictEqual(b.encode([[true, true]]).toString(), 'true  true \n');
+	});
+
+	it('String overwriting', function () {
+		var b = new _({
+			data: {
+				size: 5,
+				type: String
+			}
+		});
+
+		assert.strictEqual(b.encode(['kapusta musi byc']).toString(), 'kapus\n');
+	});
+
+	it('Array filling', function () {
+		var b = new _({
+			data: {
+				size: 2,
+				type: [
+					{
+						type: String,
+						size: 2
+					}
+				]
+			}
+		});
+
+		assert.strictEqual(b.encode([['ka']]).toString(), 'ka   \n');
+	});
+
+	it('Array overwrating', function () {
+		var b = new _({
+			data: {
+				size: 2,
+				type: [
+					{
+						type: String,
+						size: 2
+					}
+				]
+			}
+		});
+
+		assert.strictEqual(b.encode([['ka', 'pu', 'sta']]).toString(), 'ka pu\n');
+	});
+});
+
+var multi = new _({
+	string: {
+		size: 5,
 		type: String
-	},
-	name: {
-		size: 10,
-		type: String
-	},
-	overtext: {
-		size: 12,
-		type: String
-	},
-	counter: {
-		size: 6,
-		type: Number
 	},
 	bool: {
 		size: 5,
 		type: Boolean
+	},
+	arrB: {
+		size: 2,
+		type: [
+			{
+				type: Boolean,
+				size: 5
+			}
+		]
+	},
+	number: {
+		size: 5,
+		type: Number
+	},
+	arrS: {
+		size: 2,
+		type: [
+			{
+				type: String,
+				size: 5
+			}
+		]
 	}
 });
 
-writer.on('open', function(){
-	writer.write(Parser.encode(['12:06:34 2014/0/30', 'fixrows', 'Some text which is too long', '012345', 'true']));
-	writer.write(Parser.encode(['12:06:35 2014/0/30', 'fixrows', 'Some text which is too long', '012h45', 'true']));
-	writer.write(Parser.encode(['12:06:36 2014/0/30', 'fixrows', 'Some text', '0145', 'false']));
-	writer.write(Parser.encode(['12:07:34 2014/0/30', 'fixrows', 'Some text', '2345', 'false']));
-	writer.write(Parser.encode(['12:08:34 2014/0/30', 'admin', 'Some text which is too long', '01345', 'true']));
-	writer.close();
-
-	setTimeout(function(){
-		console.log(Parser.lineBytes(__dirname+'/logs/out.log', 0));
-		console.log(Parser.cellBytes(__dirname+'/logs/out.log', 1, 0));
-		console.log(Parser.getCell(__dirname+'/logs/out.log', 1, 'name'));
-		console.log(Parser.getLine(__dirname+'/logs/out.log', 2, true));
-	} ,100);
+var buffer1_1 = multi.encode(['testowo', false, [false, false], 12345, ['abra', 'cadabra']]);
+var buffer1_2 = multi.encode(['testowo', true, [false, true], 12345, ['abra', 'cadabra']]);
+var buffer1 = multi.encode(['testowo', false, [true, false], 12345, ['abra', 'cadabra']]);
+var buffer2 = multi.encode({
+	string: 'testowo',
+	bool: false,
+	arrB: [true, false],
+	number: 12345,
+	arrS: ['abra', 'cadabra']
 });
 
-writer.on('error', function(err){
-	console.log('Error:')
-	console.log(err);
+var obj = multi.decode(buffer1, false);
+var arr = multi.decode(buffer1, true);
+
+describe('fixedline.encode from Object', function(){
+	it('from Object === from Array', function(){
+		assert.strictEqual(buffer1.toString(), buffer2.toString());
+	});
+});
+
+describe('fixedline.decode', function(){
+	it('String', function () {
+		assert.strictEqual(obj.string, 'testo');
+	});
+
+	it('String2', function () {
+		assert.strictEqual(arr[0], 'testo');
+	});
+
+	it('Number', function () {
+		assert.strictEqual(obj.number, 12345);
+	});
+
+	it('Number2', function () {
+		assert.strictEqual(arr[3], 12345);
+	});
+
+	it('Boolean', function () {
+		assert.strictEqual(obj.bool, false);
+	});
+
+	it('Boolean2', function () {
+		assert.strictEqual(arr[1], false);
+	});
+
+	it('Array of Boolean', function () {
+		assert.strictEqual(obj.arrB[0], true);
+		assert.strictEqual(obj.arrB[1], false);
+	});
+
+	it('Array of Boolean2', function () {
+		assert.strictEqual(arr[2][0], true);
+		assert.strictEqual(arr[2][1], false);
+
+	});
+
+	it('Array of String', function () {
+		assert.strictEqual(obj.arrS[0], 'abra');
+		assert.strictEqual(obj.arrS[1], 'cadab');
+	});
+
+	it('Array of String2', function () {
+		assert.strictEqual(arr[4][0], 'abra');
+		assert.strictEqual(arr[4][1], 'cadab');
+	});
+});
+
+var fd = fs.openSync(__dirname+'logs/testing.log', 'r');
+for(var  i=0; i<3; i++){
+	fs.writeSync(fd, buffer1, 0, buffer1.length, multi.osize*i);
+}
+
+describe('fixedline file operations', function(){
+	it('#.linesBytes', function(){
+		//assert.deepEqual(multi.linesBytes(fd, -2, -1), {});
+	});
+
+	it('#.getLines', function(){
+		//assert.deepEqual(multi.getLines(fd, -2, -1), {});
+	});
+
+	it('#.getLine', function(){
+		//assert.deepEqual(multi.getLine(fd, -1), {});
+	});
+
+	it('#.cellButes', function(){
+		//assert.deepEqual(multi.cellBytes(fd, -2, 'arrB'), {});
+	});
+
+	it('#.getCell', function(){
+		assert.deepEqual(multi.getCell(fd, -2, 'arrB'), [true, false]);
+	});
 });

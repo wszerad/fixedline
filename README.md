@@ -57,4 +57,5 @@ like .getLine but only one cell
 ```js
 //TODO
 .getLines( fd/path, startLine, endLine, toObj )
+add array support
 ```

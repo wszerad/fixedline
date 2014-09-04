@@ -3,54 +3,65 @@ var _ = {};
 
 var Parser = _.Parser = function(scheme){
 	this.osize = 0;
-	this.conv = [];
-	this.off = [];
-	this.size = [];
-	this.names = [];
-
 	this.fill = ' ';
+	this.scheme = {};
 
-	var index = 0;
-	var maxSize = 0;
-	for(var i in scheme){
-		this.names[index] = i;
-		this.size[index] = scheme[i].size;
-		this.off[index] = this.osize;
-		this.osize += scheme[i].size;
-
-		var type = scheme[i].type;
+	function record(name, type, size, len){
 		switch(true){
 			case type===Boolean:
 				type = function(dat){
-					return (dat==='false'? false : true);
-				}
+					return (dat!=='false');
+				};
 				break;
 		}
-		this.conv[index] = type;
-		
-		maxSize = Math.max(scheme[i].size, maxSize);
-		index++;
+
+		this.scheme[name] = {
+			conv: type,
+			size: size,
+			len: len,
+			off: this.osize
+		};
+
+		this.osize += (len? len : 1)*(size+1);	//for space between values
+
+		return size;
 	}
 
-	//+1 for new line char
-	this.osize++;
+	for(var i in scheme){
+		var obj = scheme[i];
 
+		if(Array.isArray(obj.type))
+			record.call(this, i, obj.type[0].type, obj.type[0].size, obj.size);
+		else
+			record.call(this, i, obj.type, obj.size);
+	}
+
+	this.names = Object.keys(this.scheme);
 	this.buf = new Buffer(this.osize);
-	this.bufill = new Buffer(maxSize);
-	this.bufill.fill(this.fill);
 };
 
 Parser.prototype.encode = function(params){
 	var self = this;
+	var isArray = Array.isArray(params);
 
-	this.size.forEach(function(size, index){
-		var data = params[index];
-		if(data !== undefined){
-			var chars = self.buf.write((self.conv[index]!==String? data.toString() : data), self.off[index], self.size[index]);
-			if(chars<self.size[index])
-				self.bufill.copy(self.buf, self.off[index]+chars, 0, self.size[index]-chars);
+	this.buf.fill(this.fill);
+
+	function record(data, off, size, conv){
+		if(data!==undefined)
+			self.buf.write(data.toString(), off, size, 'utf8');
+	}
+
+	this.names.forEach(function(name, index){
+		var attr = self.scheme[name];
+		var conv = (attr.type!==String);
+		var data = (isArray? params[index] : params[name]);
+
+		if(attr.len){
+			for(var i=0; i<attr.len; i++){
+				record(data[i], attr.off+(1+attr.size)*i, attr.size, conv);
+			}
 		}else{
-			self.bufill.copy(self.buf, self.off[index], 0, self.size[index]);
+			record(data, attr.off, attr.size, conv);
 		}
 	});
 
@@ -58,77 +69,134 @@ Parser.prototype.encode = function(params){
 	return new Buffer(this.buf);
 };
 
-Parser.prototype.decode = function(buf, obj){
-	var self = this;
-	var ret;
+Parser.prototype.decode = function(buf, arr){
+	var ret, i, attr;
 
-	if(obj){
+	function convert(conv, off, size){
+		return conv(buf.toString('utf8', off, off+size).trimRight());
+	}
+
+	if(!arr){
 		ret = {};
-		this.size.reduce(function(obj, size, index){
-			ret[self.names[index]] = self.conv[index](buf.toString('utf8', self.off[index], self.off[index]+size).trimRight());
-		}, ret);
+
+		for(i in this.scheme){
+			attr = this.scheme[i];
+
+			if(attr.len){
+				ret[i] = [];
+				for(var j=0; j<attr.len; j++){
+					ret[i].push(convert(attr.conv, attr.off+j*(attr.size+1), attr.size));
+				}
+			} else {
+				ret[i] = convert(attr.conv, attr.off, attr.size);
+			}
+		}
 	}else{
 		ret = [];
 
-		this.size.forEach(function(size, index){
-			ret.push(self.conv[index](buf.toString('utf8', self.off[index], self.off[index]+size).trimRight()));
-		});
+		for(i in this.scheme){
+			attr = this.scheme[i];
+
+			if(attr.len){
+				var arr = [];
+				ret.push(arr);
+				for(var j=0; j<attr.len; j++){
+					arr.push(convert(attr.conv, attr.off+j*(attr.size+1), attr.size));
+				}
+			} else {
+				ret.push(convert(attr.conv, attr.off, attr.size));
+			}
+		}
 	}
 
 	return ret;
 };
 
-Parser.prototype.getLine = function(fd, line, obj){
-	var params = this.lineBytes(fd, line);
+Parser.prototype.getLines = function(fd, startLine, endLine, arr){
+	var ret = [],
+		params = this.linesBytes(fd, startLine, endLine),
+		buf = new Buffer(params.end-params.start);
 
-	fs.readSync(params.fd, this.buf, 0, this.osize, params.start, 0);
-	return this.decode(this.buf, obj);
-};
+	fs.readSync(params.fd, buf, 0, params.end-params.start, params.start, 0);
 
-Parser.prototype.lineBytes = function(fd, line){
-	var size, start;
-
-	if(typeof fd === 'string')
-		fd = fs.openSync(fd, 'r');
-
-	size = fs.fstatSync(fd).size;
-
-	if(line === -1)
-		line = Math.ceil(size/this.osize);
-
-	start = line*this.osize;
-
-	return {fd: fd, start: start, end: start+this.osize-1};
-};
-
-Parser.prototype.getCell = function(fd, line, cell){
-	var index, len, params;
-
-	if((index = this.names.indexOf(cell)) === -1){
-		index = cell;
+	for(var i=0;i<params.lines; i++){
+		ret.push(this.decode(ret.slice(i*this.osize, (i+1)*this.osize), arr));
 	}
 
-	params = this.cellBytes(fd, line, index);
-	len = params.end-params.start+1;
-	fs.readSync(params.fd, this.buf, 0, len, params.start, 0);
-
-	return this.conv[index](this.buf.toString('utf8', 0, len).trimRight());
+	return ret;
 };
 
-Parser.prototype.cellBytes = function(fd, line, index){
-	var size, start;
+Parser.prototype.getLine = function(fd, line, arr){
+	return this.getLines(fd, line, line, arr)[0];
+};
+
+Parser.prototype.linesBytes = function(fd, startLine, endLine){
+	var size,
+		start,
+		linesNum,
+		lines;
 
 	if(typeof fd === 'string')
 		fd = fs.openSync(fd, 'r');
 
 	size = fs.fstatSync(fd).size;
+	linesNum = Math.ceil(size/this.osize);
 
-	if(line === -1)
-		line = Math.ceil(size/this.osize);
+	if(startLine<0)
+		startLine = linesNum+startLine+1;
 
-	start = line*this.osize+this.off[index];
+	if(endLine<0)
+		endLine = linesNum+endLine+1;
 
-	return {fd: fd, start: start, end: start+this.size[index]-1};
+	lines = (1+endLine-startLine);
+	start = startLine*this.osize;
+
+	return {fd: fd, start: start, end: start+lines*this.osize, lines: lines};
+};
+
+Parser.prototype.getCell = function(fd, line, name){
+	var index,
+		len,
+		params,
+		buf;
+
+	index = this.names.indexOf(name);
+
+	if(index==-1)
+		name = this.names[index];
+
+	params = this.cellBytes(fd, line, name);
+
+	len = params.end-params.start+1;
+	buf = new Buffer(len);
+	fs.readSync(params.fd, buf, 0, len, params.start, 0);
+
+	return this.scheme[name].conv(buf.toString('utf8', 0, len).trimRight());
+};
+
+Parser.prototype.cellBytes = function(fd, line, name){
+	var size,
+		start,
+		index,
+		linesNum;
+
+	index = this.names.indexOf(name);
+
+	if(index==-1)
+		name = this.names[index];
+
+	if(typeof fd === 'string')
+		fd = fs.openSync(fd, 'r');
+
+	size = fs.fstatSync(fd).size;
+	linesNum = Math.ceil(size/this.osize);
+
+	if(line<0)
+		line = linesNum-line+1;
+
+	start = line*this.osize+this.scheme[name].off;
+
+	return {fd: fd, start: start, end: start+this.scheme[name].size-1};
 };
 
 module.exports = _;
