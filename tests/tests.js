@@ -140,8 +140,11 @@ var multi = new _({
 	}
 });
 
-var buffer1_1 = multi.encode(['testowo', false, [false, false], 12345, ['abra', 'cadabra']]);
-var buffer1_2 = multi.encode(['testowo', true, [false, true], 12345, ['abra', 'cadabra']]);
+var paramsArr = [['testowo', true, [false, true], 54321, ['abra', 'cadabra']], ['testowo', false, [true, false], 12345, ['abra', 'cadabra']], ['testowo', true, [false, true], 12345, ['abra', 'cadabra']]];
+var bufferArr = paramsArr.map(function(ele){
+	return multi.encode(ele);
+});
+
 var buffer1 = multi.encode(['testowo', false, [true, false], 12345, ['abra', 'cadabra']]);
 var buffer2 = multi.encode({
 	string: 'testowo',
@@ -207,29 +210,72 @@ describe('fixedline.decode', function(){
 	});
 });
 
-var fd = fs.openSync(__dirname+'logs/testing.log', 'r');
-for(var  i=0; i<3; i++){
-	fs.writeSync(fd, buffer1, 0, buffer1.length, multi.osize*i);
-}
+var fd = fs.openSync(__dirname+'/logs/testing.log', 'w+');
+bufferArr.forEach(function(buf, i){
+	fs.writeSync(fd, buf, 0, buf.length, multi.osize*i);
+});
 
 describe('fixedline file operations', function(){
 	it('#.linesBytes', function(){
-		//assert.deepEqual(multi.linesBytes(fd, -2, -1), {});
+		var ret = multi.linesBytes(fd, -2, -1);
+		assert.deepEqual({start: ret.start, end: ret.end, lines: ret.lines}, {start: 42, end: 126, lines: 2 });
 	});
 
 	it('#.getLines', function(){
-		//assert.deepEqual(multi.getLines(fd, -2, -1), {});
+		assert.deepEqual(multi.getLines(fd, -2, -1, true), [
+			[
+				"testo",
+				false,
+				[
+					true,
+					false
+				],
+				12345,
+				[
+					"abra",
+					"cadab"
+				]
+			],
+			[
+				"testo",
+				true,
+				[
+					false,
+					true
+				],
+				12345,
+				[
+					"abra",
+					"cadab"
+				]
+			]
+		]);
 	});
 
 	it('#.getLine', function(){
-		//assert.deepEqual(multi.getLine(fd, -1), {});
+		assert.deepEqual(multi.getLine(fd, -1, true), [
+			"testo",
+			true,
+			[
+				false,
+				true
+			],
+			12345,
+			[
+				"abra",
+				"cadab"
+			]
+		]);
 	});
 
 	it('#.cellButes', function(){
-		//assert.deepEqual(multi.cellBytes(fd, -2, 'arrB'), {});
+		var ret = multi.cellBytes(fd, -2, 'arrB');
+		assert.deepEqual({start: ret.start, end: ret.end, length: ret.length}, {start: 54, end: 66, length: 2 });
 	});
 
 	it('#.getCell', function(){
 		assert.deepEqual(multi.getCell(fd, -2, 'arrB'), [true, false]);
 	});
 });
+
+setInterval(function(){console.log(':D');}, 300);

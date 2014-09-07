@@ -120,7 +120,7 @@ Parser.prototype.getLines = function(fd, startLine, endLine, arr){
 	fs.readSync(params.fd, buf, 0, params.end-params.start, params.start, 0);
 
 	for(var i=0;i<params.lines; i++){
-		ret.push(this.decode(ret.slice(i*this.osize, (i+1)*this.osize), arr));
+		ret.push(this.decode(buf.slice(i*this.osize, (i+1)*this.osize), arr));
 	}
 
 	return ret;
@@ -143,10 +143,10 @@ Parser.prototype.linesBytes = function(fd, startLine, endLine){
 	linesNum = Math.ceil(size/this.osize);
 
 	if(startLine<0)
-		startLine = linesNum+startLine+1;
+		startLine = linesNum+startLine;
 
 	if(endLine<0)
-		endLine = linesNum+endLine+1;
+		endLine = linesNum+endLine;
 
 	lines = (1+endLine-startLine);
 	start = startLine*this.osize;
@@ -156,7 +156,9 @@ Parser.prototype.linesBytes = function(fd, startLine, endLine){
 
 Parser.prototype.getCell = function(fd, line, name){
 	var index,
-		len,
+		arr,
+		chunk,
+		size,
 		params,
 		buf;
 
@@ -166,18 +168,27 @@ Parser.prototype.getCell = function(fd, line, name){
 		name = this.names[index];
 
 	params = this.cellBytes(fd, line, name);
+	size = params.end-params.start;
+	buf = new Buffer(size);
 
-	len = params.end-params.start+1;
-	buf = new Buffer(len);
-	fs.readSync(params.fd, buf, 0, len, params.start, 0);
+	fs.readSync(params.fd, buf, 0, size, params.start, 0);
 
-	return this.scheme[name].conv(buf.toString('utf8', 0, len).trimRight());
+	if(params.length>1){
+		arr = [];
+		chunk = size/params.length;
+		for(var i=0;i<params.length; i++){
+			arr.push(this.scheme[name].conv(buf.toString('utf8', i*chunk, (1+i)*chunk).trimRight()));
+		}
+		return arr;
+	}else
+		return this.scheme[name].conv(buf.toString('utf8', 0, size).trimRight());
 };
 
 Parser.prototype.cellBytes = function(fd, line, name){
 	var size,
 		start,
 		index,
+		len,
 		linesNum;
 
 	index = this.names.indexOf(name);
@@ -192,11 +203,12 @@ Parser.prototype.cellBytes = function(fd, line, name){
 	linesNum = Math.ceil(size/this.osize);
 
 	if(line<0)
-		line = linesNum-line+1;
+		line = linesNum+line;
 
 	start = line*this.osize+this.scheme[name].off;
+	len = this.scheme[name].len || 1;
 
-	return {fd: fd, start: start, end: start+this.scheme[name].size-1};
+	return {fd: fd, start: start, end: start+(this.scheme[name].size+1)*len, length: len};
 };
 
 module.exports = _;
