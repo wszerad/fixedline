@@ -1,6 +1,6 @@
 {
 	"name": "fixedline",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"description": "Simple lib to create fixed size logs. Useful for big log files or filedased batabase",
 	"main": "index.js",
 	"directories": {
